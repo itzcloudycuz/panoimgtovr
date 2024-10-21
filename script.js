@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
     animate();
 
     function init() {
-        // Scene setup
+        // Scenesetup
         scene = new THREE.Scene();
 
         // Camera setup
