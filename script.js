@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 let scene, camera, renderer, controls, sphereMesh;
