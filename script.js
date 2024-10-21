@@ -1,97 +1,100 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-let scene, camera, renderer, controls, sphereMesh;
-const loader = document.getElementById('loader');
+document.addEventListener('DOMContentLoaded', function () {
+    let camera, scene, renderer, sphere, material, controls;
+    let textureLoader = new THREE.TextureLoader();
 
-// Initialize scene, camera, and renderer
-function initScene() {
-    scene = new THREE.Scene();
+    init();
+    animate();
 
-    // Set up the camera
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 600); // Adjusted camera position
+    function init() {
+        // Scene setup
+        scene = new THREE.Scene();
 
-    // Set up the renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setClearColor(0x000000);  // Black background
-    renderer.setSize(window.innerWidth, window.innerHeight);
+        // Camera setup
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(0, 0, 0.1);  // Start slightly inside the sphere
 
-    // Append renderer to the body
-    document.body.appendChild(renderer.domElement);
+        // Renderer setup
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-    // Add ambient light to the scene
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-    scene.add(ambientLight);
+        // Create the sphere geometry for the panoramic image
+        const geometry = new THREE.SphereGeometry(100, 60, 40);
+        geometry.scale(-1, 1, 1);  // Flip the sphere inside-out
 
-    // Handle window resizing
-    window.addEventListener('resize', () => {
+        // Default material (empty until an image is uploaded)
+        material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        // Add OrbitControls to enable mouse interaction
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableZoom = false;  // Disable zoom if not needed
+        controls.update();
+
+        // Handle image upload
+        const uploadButton = document.getElementById('upload-button');
+        uploadButton.addEventListener('change', handleImageUpload);
+
+        // Handle "Generate VR" button
+        const generateButton = document.getElementById('generate-button');
+        generateButton.addEventListener('click', enableVRMode);
+
+        window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imageUrl = e.target.result;
+                textureLoader.load(imageUrl, function(texture) {
+                    material.map = texture;
+                    material.needsUpdate = true;  // Trigger a re-render
+                    document.getElementById('generate-button').style.visibility = 'visible'; // Show button
+                });
+            };
+            reader.readAsDataURL(file);  // Ensure this works properly
+        }
+    }
+
+    async function enableVRMode() {
+        console.log("WebXR available:", !!navigator.xr);
+        const isSupported = navigator.xr && await navigator.xr.isSessionSupported('immersive-vr');
+        console.log("Is session supported:", isSupported);
+
+        if (renderer.xr.isPresenting) {
+            // If already in VR, exit VR
+            renderer.xr.end();
+        } else {
+            // Enable VR mode
+            if (isSupported) {
+                renderer.xr.enabled = true;
+                document.body.appendChild(VRButton.createButton(renderer));
+            } else {
+                alert("VR not supported on this device or browser.");
+            }
+        }
+    }
+
+    function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    }
 
-    // Initialize controls
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableZoom = true;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.1;
-}
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();  // Update controls on every frame
+        render();
+    }
 
-// Create the sphere for the 360° image
-function createSphere() {
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
-    geometry.scale(-1, 1, 1);  // Flip the sphere inside out
-
-    const material = new THREE.MeshBasicMaterial({
-        color: 0x000000, // Default black material
-        side: THREE.DoubleSide // Enable double-sided rendering
-    });
-
-    sphereMesh = new THREE.Mesh(geometry, material);
-    scene.add(sphereMesh);
-}
-
-// Handle file upload and texture application
-document.getElementById('fileInput').addEventListener('change', function (event) {
-    const file = event.target.files[0];
-    if (!file || !sphereMesh) return; // Ensure sphereMesh is defined
-
-    const reader = new FileReader();
-    loader.style.display = 'block';  // Show loader while image is processing
-
-    reader.onload = function (e) {
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load(
-            e.target.result,
-            function (texture) {
-                // Apply the texture to the sphere
-                sphereMesh.material.map = texture;
-                sphereMesh.material.needsUpdate = true;
-                loader.style.display = 'none';  // Hide loader once the image is applied
-            },
-            undefined,
-            function (err) {
-                loader.style.display = 'none';
-                console.error('Error loading texture:', err);
-                alert('There was an error loading the image. Please try again.');
-            }
-        );
-    };
-
-    reader.readAsDataURL(file);
-});
-
-// Animation loop
-function animate() {
-    renderer.setAnimationLoop(() => {
-        controls.update();
+    function render() {
         renderer.render(scene, camera);
-    });
-}
-
-// Initialize everything
-initScene();
-createSphere();
-animate();
+    }
+});
